@@ -1,0 +1,46 @@
+# Firebase
+firebase-admin==6.5.0
+firebase-functions==0.8.1
+
+# HTTP & API
+aiohttp==3.9.5
+requests==2.32.3
+
+# Data Processing
+pandas==2.2.2
+numpy==1.26.4
+
+# Technical Analysis
+ta-lib==0.4.28
+pandas-ta==0.3.14b0
+
+# Statistics & Validation
+scikit-learn==1.4.2
+scipy==1.13.1
+statsmodels==0.14.1
+
+# Machine Learning - HMM Regime Detection
+hmmlearn==0.3.2
+
+# Time Series
+python-dateutil==2.8.2
+
+# Environment & Config
+python-dotenv==1.0.1
+
+# Logging
+python-json-logger==2.0.7
+
+# Crypto
+ccxt==4.2.43
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+
+# LLM
+groq==0.5.0
+
+# Utilities
+pytz==2024.1
+pydantic==2.7.4
