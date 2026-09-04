@@ -1,0 +1,5 @@
+{
+  "projects": {
+    "default": "kraken-sentinel-prod"
+  }
+}
