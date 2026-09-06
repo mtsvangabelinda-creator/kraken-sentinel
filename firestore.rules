@@ -1,0 +1,279 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================================================================
+    // HELPER FUNCTIONS
+    // ========================================================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user is admin (has admin role in custom claims)
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+    
+    // Check if document belongs to user
+    function belongsToUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Allow read/write to sensitive collections only for admin
+    function isSensitive(collection) {
+      return collection in [
+        'config',
+        'circuit_breakers',
+        'evolution_history',
+        'genetic_history',
+        'margin_activation_attempts',
+        'error_log'
+      ];
+    }
+    
+    // ========================================================================
+    // DEFAULT: DENY ALL
+    // ========================================================================
+    match /{document=**} {
+      allow read, write: false;
+    }
+    
+    // ========================================================================
+    // PUBLIC COLLECTIONS (Anyone can read, admin writes)
+    // ========================================================================
+    
+    // Asset scores - public read (for dashboard), admin write
+    match /asset_scores/{document=**} {
+      allow read: if true;  // Public read for dashboard
+      allow write: if isAdmin();
+    }
+    
+    // Equity history - public read, admin write
+    match /equity_history/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // OHLCV data - public read, admin write
+    match /ohlcv_data/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // OHLCV historical - public read, admin write
+    match /ohlcv_historical/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Regime history - public read, admin write
+    match /regime_history/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Trade history - public read (for dashboard), admin write
+    match /trade_history/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Signals - public read, admin write
+    match /signals/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // ========================================================================
+    // ADMIN-ONLY COLLECTIONS (Sensitive data)
+    // ========================================================================
+    
+    // Configuration - admin only
+    match /config/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Circuit breakers - admin only
+    match /circuit_breakers/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Evolution history - admin only
+    match /evolution_history/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Genetic history - admin only
+    match /genetic_history/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Validation reports - admin only
+    match /validation_reports/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Margin toggle - admin only
+    match /margin_toggle/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Margin activation attempts - admin only (sensitive)
+    match /margin_activation_attempts/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Error log - admin only
+    match /error_log/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // ========================================================================
+    // OPEN POSITIONS (Real-time monitoring)
+    // ========================================================================
+    
+    match /open_positions/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // ========================================================================
+    // CLOSE SIGNALS (For position closure)
+    // ========================================================================
+    
+    match /close_signals/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // ========================================================================
+    // RATE LIMITING & THROTTLING
+    // ========================================================================
+    
+    // Rate limit tracking - admin only
+    match /rate_limits/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // ========================================================================
+    // USER-SPECIFIC DATA (If multi-tenant in future)
+    // ========================================================================
+    
+    // User preferences - user or admin
+    match /user_preferences/{userId} {
+      allow read: if belongsToUser(userId) || isAdmin();
+      allow write: if belongsToUser(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // User API keys (encrypted) - user or admin only
+    match /user_api_keys/{userId} {
+      allow read: if belongsToUser(userId) || isAdmin();
+      allow write: if belongsToUser(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ========================================================================
+    // LOGGING & MONITORING
+    // ========================================================================
+    
+    // System logs - admin only
+    match /system_logs/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // Audit logs - admin only
+    match /audit_logs/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // ========================================================================
+    // NOTIFICATION PREFERENCES
+    // ========================================================================
+    
+    match /notification_preferences/{userId} {
+      allow read: if belongsToUser(userId) || isAdmin();
+      allow write: if belongsToUser(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ========================================================================
+    // BACKUP & RECOVERY
+    // ========================================================================
+    
+    // Backups - admin only
+    match /backups/{document=**} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // ========================================================================
+    // REALTIME DATABASE RULES
+    // ========================================================================
+    
+    // Note: Realtime paths would be defined in Firebase Realtime Database rules
+    // For now, all Firestore collections are covered above
+    
+    // ========================================================================
+    // SECURITY NOTES
+    // ========================================================================
+    
+    /*
+    Security Model:
+    
+    1. PUBLIC DATA (anyone can read):
+       - Asset scores (for asset selection)
+       - Equity history (for dashboard)
+       - OHLCV data (for backtesting)
+       - Regime history (for analysis)
+       - Trade history (for performance tracking)
+       - Signals (for analysis)
+    
+    2. SENSITIVE DATA (admin only):
+       - Configuration (strategy parameters)
+       - Circuit breakers (risk management state)
+       - Evolution/genetic history (model internals)
+       - Validation reports (strategy performance)
+       - Margin settings (account configuration)
+       - Error logs (system health)
+    
+    3. OPERATIONAL DATA (admin only):
+       - Open positions (active trades)
+       - Close signals (exit triggers)
+       - Rate limits (API throttling)
+    
+    4. USER DATA (user or admin):
+       - Preferences (user settings)
+       - API keys (encrypted credentials)
+       - Notification preferences
+    
+    5. AUDIT & RECOVERY (admin only):
+       - System logs (operations)
+       - Audit logs (compliance)
+       - Backups (disaster recovery)
+    
+    Assumptions:
+    - Admin authenticated via Firebase custom claims
+    - All users must be authenticated (future multi-user)
+    - Sensitive data encrypted at rest (Firebase default)
+    - All writes logged for audit trail
+    - Public data cached for performance
+    
+    Note: Current implementation is single-user (no separate user UID).
+    Multi-user support would require additional rules and user isolation.
+    */
+  }
+}
