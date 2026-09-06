@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kraken Sentinel V15.0 — Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="title">⚡ KRAKEN SENTINEL V15.0</h1>
+                <p class="subtitle">Autonomous Momentum & Swing Trading</p>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator" id="firebaseStatus">🔴 Disconnected</div>
+                <div class="timestamp" id="timestamp">—</div>
+            </div>
+        </header>
+
+        <!-- MAIN GRID -->
+        <div class="grid-container">
+            <!-- ROW 1: KEY METRICS -->
+            <div class="card card-full">
+                <h2 class="card-title">📊 KEY METRICS</h2>
+                <div class="metrics-grid">
+                    <div class="metric">
+                        <span class="metric-label">Active Positions</span>
+                        <span class="metric-value" id="activePositions">0</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Total P&L (USD)</span>
+                        <span class="metric-value" id="totalPnL">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Win Rate</span>
+                        <span class="metric-value" id="winRate">0%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Equity</span>
+                        <span class="metric-value" id="currentEquity">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Drawdown</span>
+                        <span class="metric-value warning" id="maxDrawdown">0%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Daily Loss</span>
+                        <span class="metric-value" id="dailyLoss">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROW 2: EQUITY CURVE & REGIME -->
+            <div class="card">
+                <h2 class="card-title">📈 Equity Curve (7d)</h2>
+                <canvas id="equityChart"></canvas>
+            </div>
+
+            <div class="card">
+                <h2 class="card-title">🔄 Market Regime</h2>
+                <div class="regime-container">
+                    <div class="regime-state" id="regimeState">—</div>
+                    <div class="regime-confidence" id="regimeConfidence">—</div>
+                    <div class="regime-heatmap" id="regimeHeatmap"></div>
+                </div>
+            </div>
+
+            <!-- ROW 3: PENDING SIGNALS & ACTIVE POSITIONS -->
+            <div class="card card-half">
+                <h2 class="card-title">🎯 Pending Signals</h2>
+                <div class="table-container">
+                    <table id="signalsTable">
+                        <thead>
+                            <tr>
+                                <th>Pair</th>
+                                <th>Strategy</th>
+                                <th>Z-Score</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="signalsBody">
+                            <tr><td colspan="4" class="no-data">No pending signals</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card card-half">
+                <h2 class="card-title">💼 Open Positions</h2>
+                <div class="table-container">
+                    <table id="positionsTable">
+                        <thead>
+                            <tr>
+                                <th>Pair</th>
+                                <th>Entry</th>
+                                <th>Size</th>
+                                <th>Unrealized</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positionsBody">
+                            <tr><td colspan="4" class="no-data">No open positions</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ROW 4: TRADE HISTORY -->
+            <div class="card card-full">
+                <h2 class="card-title">📝 Recent Trades (Last 10)</h2>
+                <div class="table-container">
+                    <table id="tradeHistoryTable">
+                        <thead>
+                            <tr>
+                                <th>Pair</th>
+                                <th>Strategy</th>
+                                <th>Entry</th>
+                                <th>Exit</th>
+                                <th>P&L</th>
+                                <th>Return %</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tradeHistoryBody">
+                            <tr><td colspan="7" class="no-data">No trade history</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ROW 5: ASSET SCORES -->
+            <div class="card">
+                <h2 class="card-title">⭐ Top Asset Scores</h2>
+                <div id="assetScoresContainer"></div>
+            </div>
+
+            <!-- ROW 6: EVOLUTION -->
+            <div class="card">
+                <h2 class="card-title">🧬 Genetic Evolution</h2>
+                <canvas id="evolutionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <footer class="footer">
+            <p>Kraken Sentinel V15.0 | Firebase Cloud Functions | Real-Time Dashboard</p>
+            <p id="footerStatus">Initializing Firestore connection...</p>
+        </footer>
+    </div>
+
+    <!-- FIREBASE CONFIG -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getFirestore, collection, query, onSnapshot, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+        // REPLACE WITH YOUR FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Global state
+        let equityChart, evolutionChart;
+        let equityData = [];
+        let tradeHistory = [];
+        let openPositions = [];
+        let signals = [];
+
+        // Initialize charts
+        function initCharts() {
+            const equityCtx = document.getElementById('equityChart').getContext('2d');
+            equityChart = new Chart(equityCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Equity (USD)',
+                        data: [],
+                        borderColor: '#00ff00',
+                        backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true,
+                        pointBackgroundColor: '#00ff00',
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            ticks: { color: '#00ff00' },
+                            grid: { color: 'rgba(0, 255, 0, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#0ff' },
+                            grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+
+            const evolutionCtx = document.getElementById('evolutionChart').getContext('2d');
+            evolutionChart = new Chart(evolutionCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Best Fitness',
+                        data: [],
+                        borderColor: '#ff00ff',
+                        backgroundColor: 'rgba(255, 0, 255, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointBackgroundColor: '#ff00ff',
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            ticks: { color: '#ff00ff' },
+                            grid: { color: 'rgba(255, 0, 255, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#0ff' },
+                            grid: { color: 'rgba(0, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            document.getElementById('timestamp').textContent = now.toLocaleTimeString();
+        }
+
+        // Listen to Firestore collections
+        function setupListeners() {
+            // Equity history
+            const equityQuery = query(collection(db, 'equity_history'), orderBy('timestamp', 'desc'), limit(168));
+            onSnapshot(equityQuery, (snapshot) => {
+                equityData = [];
+                snapshot.docs.forEach(doc => equityData.unshift(doc.data()));
+                updateEquityChart();
+            });
+
+            // Open positions
+            onSnapshot(collection(db, 'open_positions'), (snapshot) => {
+                openPositions = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                updatePositionsTable();
+                updateMetrics();
+            });
+
+            // Trade history
+            const tradeQuery = query(collection(db, 'trade_history'), orderBy('exit_timestamp', 'desc'), limit(10));
+            onSnapshot(tradeQuery, (snapshot) => {
+                tradeHistory = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                updateTradeHistoryTable();
+                updateMetrics();
+            });
+
+            // Pending signals
+            const signalsQuery = query(collection(db, 'signals'), orderBy('timestamp', 'desc'), limit(10));
+            onSnapshot(signalsQuery, (snapshot) => {
+                signals = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                updateSignalsTable();
+            });
+
+            // Regime history
+            const regimeQuery = query(collection(db, 'regime_history'), orderBy('timestamp', 'desc'), limit(1));
+            onSnapshot(regimeQuery, (snapshot) => {
+                if (snapshot.docs.length > 0) {
+                    const regime = snapshot.docs[0].data();
+                    updateRegimeDisplay(regime);
+                }
+            });
+
+            // Asset scores
+            onSnapshot(collection(db, 'asset_scores'), (snapshot) => {
+                const scores = snapshot.docs.map(doc => ({pair: doc.id, ...doc.data()}));
+                updateAssetScores(scores);
+            });
+
+            // Evolution history
+            const evolutionQuery = query(collection(db, 'evolution_history'), orderBy('timestamp', 'desc'), limit(50));
+            onSnapshot(evolutionQuery, (snapshot) => {
+                const evolution = [];
+                snapshot.docs.forEach(doc => evolution.unshift(doc.data()));
+                updateEvolutionChart(evolution);
+            });
+
+            document.getElementById('firebaseStatus').textContent = '🟢 Connected';
+            document.getElementById('footerStatus').textContent = 'Real-time Firestore updates active';
+        }
+
+        // Update functions
+        function updateEquityChart() {
+            if (equityData.length === 0) return;
+            const labels = equityData.map(d => new Date(d.timestamp).toLocaleTimeString());
+            const values = equityData.map(d => d.equity);
+            equityChart.data.labels = labels;
+            equityChart.data.datasets[0].data = values;
+            equityChart.update();
+        }
+
+        function updatePositionsTable() {
+            const tbody = document.getElementById('positionsBody');
+            if (openPositions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="no-data">No open positions</td></tr>';
+                return;
+            }
+            tbody.innerHTML = openPositions.map(pos => `
+                <tr>
+                    <td class="pair">${pos.pair}</td>
+                    <td>$${pos.entry_price?.toFixed(2) || '—'}</td>
+                    <td>${pos.size?.toFixed(4) || '—'}</td>
+                    <td class="${pos.unrealized_pnl > 0 ? 'profit' : 'loss'}">
+                        $${pos.unrealized_pnl?.toFixed(2) || '—'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateTradeHistoryTable() {
+            const tbody = document.getElementById('tradeHistoryBody');
+            if (tradeHistory.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="no-data">No trade history</td></tr>';
+                return;
+            }
+            tbody.innerHTML = tradeHistory.map(trade => {
+                const duration = Math.round((new Date(trade.exit_timestamp) - new Date(trade.entry_timestamp)) / 1000 / 60);
+                return `
+                    <tr>
+                        <td class="pair">${trade.pair}</td>
+                        <td>${trade.strategy}</td>
+                        <td>$${trade.entry_price?.toFixed(2) || '—'}</td>
+                        <td>$${trade.exit_price?.toFixed(2) || '—'}</td>
+                        <td class="${trade.pnl > 0 ? 'profit' : 'loss'}">$${trade.pnl?.toFixed(2) || '—'}</td>
+                        <td class="${trade.return_pct > 0 ? 'profit' : 'loss'}">${trade.return_pct?.toFixed(2) || '—'}%</td>
+                        <td>${duration}m</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateSignalsTable() {
+            const tbody = document.getElementById('signalsBody');
+            if (signals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="no-data">No pending signals</td></tr>';
+                return;
+            }
+            tbody.innerHTML = signals.map(sig => `
+                <tr>
+                    <td class="pair">${sig.pair}</td>
+                    <td>${sig.strategy}</td>
+                    <td>${sig.z_score?.toFixed(2) || '—'}</td>
+                    <td>${sig.confidence?.toFixed(2) || '—'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updateMetrics() {
+            document.getElementById('activePositions').textContent = openPositions.length;
+
+            let totalPnL = 0;
+            let wins = 0;
+            tradeHistory.forEach(trade => {
+                totalPnL += trade.pnl || 0;
+                if ((trade.pnl || 0) > 0) wins++;
+            });
+            
+            document.getElementById('totalPnL').textContent = `$${totalPnL.toFixed(2)}`;
+            const winRate = tradeHistory.length > 0 ? ((wins / tradeHistory.length) * 100).toFixed(1) : 0;
+            document.getElementById('winRate').textContent = `${winRate}%`;
+            
+            const unrealizedPnL = openPositions.reduce((sum, pos) => sum + (pos.unrealized_pnl || 0), 0);
+            const equity = equityData.length > 0 ? equityData[equityData.length - 1].equity : 300;
+            document.getElementById('currentEquity').textContent = `$${equity.toFixed(2)}`;
+            document.getElementById('dailyLoss').textContent = `$${unrealizedPnL.toFixed(2)}`;
+        }
+
+        function updateRegimeDisplay(regime) {
+            const states = ['Trend', 'Choppy', 'Ranging', 'Vol-Low', 'Vol-High'];
+            document.getElementById('regimeState').textContent = `State: ${states[regime.current_state] || '—'}`;
+            document.getElementById('regimeConfidence').textContent = `Confidence: ${(regime.confidence * 100).toFixed(1)}%`;
+        }
+
+        function updateAssetScores(scores) {
+            const container = document.getElementById('assetScoresContainer');
+            const top = scores.sort((a, b) => (b.composite_score || 0) - (a.composite_score || 0)).slice(0, 5);
+            container.innerHTML = top.map(score => `
+                <div class="score-bar">
+                    <span class="pair">${score.pair}</span>
+                    <div class="bar"><div class="fill" style="width: ${(score.composite_score || 0) * 100}%"></div></div>
+                    <span class="value">${(score.composite_score || 0).toFixed(3)}</span>
+                </div>
+            `).join('');
+        }
+
+        function updateEvolutionChart(evolution) {
+            if (evolution.length === 0) return;
+            const labels = evolution.map((_, i) => `Gen ${i}`);
+            const values = evolution.map(e => e.best_fitness || 0);
+            evolutionChart.data.labels = labels;
+            evolutionChart.data.datasets[0].data = values;
+            evolutionChart.update();
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            initCharts();
+            setupListeners();
+            setInterval(updateTimestamp, 1000);
+        });
+    </script>
+</body>
+  </html>
